@@ -1,52 +1,47 @@
-const fetch = require('node-fetch');
-
-const TELEGRAM_BOT_TOKEN = '7887428382:AAEPSoJn_agWn17MEGEM43hStu-pmr6kC5Q';
-const CHAT_ID = '7096229986';
+const fetch = require("node-fetch");
+const FormData = require("form-data");
 
 exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
+  try {
+    const body = event.body;
+    const isBase64 = event.isBase64Encoded;
+
+    // Ubah Buffer dari base64 (Shortcut iOS mengirim sebagai file binary base64)
+    const buffer = Buffer.from(body, isBase64 ? "base64" : "utf8");
+
+    // Kirim ke Telegram
+    const form = new FormData();
+    form.append("chat_id", "7096229986"); // Ganti dengan chat ID kamu
+    form.append("photo", buffer, {
+      filename: "image.jpg",
+      contentType: "image/jpeg",
+    });
+
+    const telegramResponse = await fetch("https://api.telegram.org/bot7887428382:AAEPSoJn_agWn17MEGEM43hStu-pmr6kC5Q/sendPhoto", {
+      method: "POST",
+      body: form,
+    });
+
+    const telegramData = await telegramResponse.json();
+
+    if (!telegramData.ok) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Failed to send photo to Telegram", telegramResponse: telegramData }),
+      };
+    }
+
     return {
-      statusCode: 405,
-      body: 'Method Not Allowed',
+      statusCode: 200,
+      body: JSON.stringify({
+        message: "Photo sent to Telegram",
+        file_id: telegramData.result.photo.pop().file_id,
+      }),
     };
-  }
-
-  const body = JSON.parse(event.body);
-  const { base64, filename } = body;
-
-  if (!base64 || !filename) {
-    return {
-      statusCode: 400,
-      body: 'Missing base64 or filename',
-    };
-  }
-
-  const fileBuffer = Buffer.from(base64, 'base64');
-
-  const formData = new FormData();
-  formData.append('chat_id', CHAT_ID);
-  formData.append('caption', filename);
-  formData.append('photo', new Blob([fileBuffer], { type: 'image/jpeg' }), filename);
-
-  const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  const telegramResponse = await response.json();
-
-  if (!telegramResponse.ok) {
+  } catch (error) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to send photo to Telegram', telegramResponse }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
-
-  // Ambil file_id untuk digunakan nanti
-  const file_id = telegramResponse.result.photo.pop().file_id;
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({ message: 'Photo sent to Telegram', file_id }),
-  };
 };
